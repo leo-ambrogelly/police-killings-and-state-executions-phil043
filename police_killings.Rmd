@@ -1,0 +1,122 @@
+---
+title: "Police Killings for PHIL 043"
+author: "Léo L. Ambrogelly"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+The project below combines the graphs data from the Espy File (ICPSR 8451), the Death Penalty Information Center, the Fatal Encounters dataset, and the Mapping Police Violence dataset in order to graph executions and estimated police killings in the United States since 2000. 
+
+It is acknowledged that owing to the crowdsourced nature of the later two datasets, it may be the case that increased public awareness of police violence since the start of the BLM movement in 2000 may have lead to higher reporting rates for police killings. Nonetheless, the objective of this preliminary analysis was just to demonstrate the growing prevalence of police killings vs. prison executions.
+
+```{r, Boilerplate, echo=FALSE}
+# Import Packages
+
+library(tidyverse)   # ggplot2, pipes
+library(lubridate)   # date helpers
+```
+
+In the section below, I import data from the sources listed above, and apply data transformations to facilitate their combination into a coherent dataset for graphing and export.
+
+```{r, Data Import and Cleaning}
+# Executions
+# Espy file + DPIC data
+
+# Historical Espy file 1608-2002
+espy_raw <- read_tsv("08451-0001-Data.tsv", show_col_types = FALSE)
+executions_espy <- espy_raw %>%
+  transmute(year = as.integer(V14)) %>%
+  count(year, name = "executions")
+
+# Modern era, 1976-2025
+dpic <- read_csv("executions.csv", show_col_types = FALSE) %>%
+  mutate(
+    year = year(mdy(`Execution Date`))
+  ) %>% 
+  count(year, name = "executions") %>%
+  arrange(year)
+
+# Merge Modern Data with Espy file
+executions <- bind_rows(executions_espy, dpic) %>%
+  group_by(year) %>%
+  summarise(executions = sum(executions), .groups = "drop")
+
+# Police Killings
+# Mapping Police Violence + Fatal Encounters (scaled to MPV level)
+
+# Mapping Police Violence (2013-2025)
+mpv_raw  <- read_csv("MPVDatasetDownload.csv", show_col_types = FALSE)
+date_var <- names(mpv_raw)[str_detect(names(mpv_raw), regex("date", TRUE))][1]
+
+police_mpv <- mpv_raw %>%
+  mutate(year = year(mdy(.data[[date_var]]))) %>%
+  count(year, name = "count") %>%
+  filter(between(year, 2013, 2025))
+
+# Fatal Encounters (2000-2025)
+fe_raw      <- read_csv("fatal_encounters.csv", show_col_types = FALSE)
+date_var_fe <- names(fe_raw)[str_detect(names(fe_raw), regex("date", TRUE))][1]
+
+police_fe <- fe_raw %>%
+  mutate(year = year(mdy(.data[[date_var_fe]]))) %>%
+  count(year, name = "count") %>%
+  filter(between(year, 2000, 2025))
+
+# Scale Fatal Encounters up to Mapping Police Violence levels using overlap years (2013-2024)
+overlap     <- intersect(police_mpv$year, police_fe$year)
+fe_to_mpv   <- mean(police_mpv$count[match(overlap, police_mpv$year)] /
+                    police_fe$count [match(overlap, police_fe$year)],
+                    na.rm = TRUE)
+
+police_fe_scaled <- police_fe %>%
+  mutate(count = count * fe_to_mpv) %>%   # apply correction factor
+  filter(year < 2013)                     # keep only years MPV lacks
+
+# Combine FE (2000-2012) + MPV (2013-2025)
+police_killings <- bind_rows(police_mpv, police_fe_scaled) %>%
+  arrange(year) %>%
+  complete(year = 2000:2025, fill = list(count = 0))
+
+# Pivot Data for use with GGPlot
+data_long <- full_join(executions, police_killings, by = "year") %>%
+  replace_na(list(executions = 0, count = 0)) %>%
+  pivot_longer(cols = c(executions, count),
+               names_to  = "type",
+               values_to = "deaths") %>%
+  mutate(type = recode(type,
+                       executions = "State executions",
+                       count      = "Estimated police killings")) %>%
+  filter(between(year, 2000, 2024)) # Sadly, I couldn't access pre-2000 police killing data, and the 2025 data is incomplete and this exhibits a downward 'spike'.
+```
+
+```{r, warning=FALSE, Data Visualization and Export to CSV for TikZ Figure}
+
+# Plot
+
+ggplot(data_long, aes(year, deaths, colour = type)) +
+  geom_line(size = 1) +
+  scale_colour_manual(values = c("State executions"        = "firebrick",
+                                 "Estimated police killings" = "steelblue")) +
+  labs(
+    title    = "Executions vs. Estimated Police Killings, United States",
+    y        = "Deaths per year",
+    x        = NULL,
+    colour   = NULL,
+    caption  = "Sources: Espy File (ICPSR 8451); Death Penalty Information Center; Fatal Encounters; Mapping Police Violence."
+  ) +
+  theme_minimal()
+
+# Format and export data in a TikZ-friendly format
+
+data_tikz <- data_long %>%
+  pivot_wider(names_from = type,
+              values_from = deaths) %>%
+  arrange(year) %>%
+  rename(
+    executions       = `State executions`,
+    police_killings  = `Estimated police killings`
+  )
+
+write_csv(data_tikz, "executions_police_killings_tikz.csv")
+
+```
