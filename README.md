@@ -1,0 +1,3 @@
+This project combines and graphs data from the Espy File (ICPSR 8451), the Death Penalty Information Center, the Fatal Encounters dataset, and the Mapping Police Violence dataset in order to graph executions and estimated police killings in the United States since 2000. 
+
+It is acknowledged that owing to the crowdsourced nature of the later two datasets, it may be the case that increased public awareness of police violence since the start of the BLM movement in 2000 may have lead to higher reporting rates for police killings. Nonetheless, the objective of this preliminary analysis was just to demonstrate the growing prevalence of police killings vs. prison executions.
