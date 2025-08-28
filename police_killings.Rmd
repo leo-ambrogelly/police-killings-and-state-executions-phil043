@@ -39,7 +39,7 @@ dpic <- read_csv("executions.csv", show_col_types = FALSE) %>%
 # Merge Modern Data with Espy file
 executions <- bind_rows(executions_espy, dpic) %>%
   group_by(year) %>%
-  summarise(executions = sum(executions), .groups = "drop")
+  summarize(executions = sum(executions), .groups = "drop")
 
 # Police Killings
 # Mapping Police Violence + Fatal Encounters (scaled to MPV level)
@@ -93,15 +93,15 @@ data_long <- full_join(executions, police_killings, by = "year") %>%
 
 # Plot
 
-ggplot(data_long, aes(year, deaths, colour = type)) +
-  geom_line(size = 1) +
-  scale_colour_manual(values = c("State executions"        = "firebrick",
+ggplot(data_long, aes(year, deaths, color = type)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("State executions"        = "firebrick",
                                  "Estimated police killings" = "steelblue")) +
   labs(
     title    = "Executions vs. Estimated Police Killings, United States",
     y        = "Deaths per year",
     x        = NULL,
-    colour   = NULL,
+    color   = NULL,
     caption  = "Sources: Espy File (ICPSR 8451); Death Penalty Information Center; Fatal Encounters; Mapping Police Violence."
   ) +
   theme_minimal()
